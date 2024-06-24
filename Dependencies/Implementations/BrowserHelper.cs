@@ -24,6 +24,11 @@
                 launchOptions.Channel = "msedge";
                 BrowserType = "Chromium";
             }
+
+            if (BrowserType == "Safari")
+            {
+                BrowserType = "Webkit";
+            }
             
             IBrowser browser = await _playwright[BrowserType].LaunchAsync(launchOptions);
             _browsers.Add(browserKey, browser);

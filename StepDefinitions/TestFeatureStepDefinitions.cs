@@ -28,7 +28,6 @@ namespace AutomationFramework.StepDefinitions
         {
             Device.LocateByRole(role, new() { NameString = LabelText });
             await Device.CurrentLocator().ToBeVisibleAsync();
-            await Device.PauseAsync();
         }
     }
 }

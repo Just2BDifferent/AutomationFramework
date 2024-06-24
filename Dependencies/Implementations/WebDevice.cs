@@ -3,7 +3,7 @@ using Deque.AxeCore.Playwright;
 
 namespace AutomationFramework
 {
-    public class WebDevice : IWebDevice
+    public class WebDevice : IWebDevice, IDisposable
     {
         private readonly IPlaywright _playwright;
         private readonly IBrowserHelper _browserHelper;
@@ -116,7 +116,11 @@ namespace AutomationFramework
 
         private Task<IBrowser> LaunchBrowser()
         {
-            if (_browserContext != null) _browserContext = null;
+            if (_browserContext != null)
+            {
+                _browserContext.Result.CloseAsync();
+                _browserContext = null;
+            }
             return _browserHelper.GetBrowser(_browserType, IsVisible);
         }
 
@@ -201,6 +205,16 @@ namespace AutomationFramework
             else
                 result = await Page.RunAxe(new AxeRunOptions() { RunOnly = runOnly });
             return result;
+        }
+
+        public void Dispose()
+        {
+            if (_browserContext != null)
+            {
+                var task = _browserContext.Result.CloseAsync();
+                task.Wait();
+            }
+
         }
 
         public event EventHandler<IDownload> OnDownload { add { Page.Download += value; } remove { Page.Download -= value; } }
