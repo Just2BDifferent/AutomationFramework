@@ -1,5 +1,7 @@
 ﻿using Deque.AxeCore.Commons;
 using Deque.AxeCore.Playwright;
+using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 
 namespace AutomationFramework
 {
@@ -7,6 +9,7 @@ namespace AutomationFramework
     {
         private readonly IPlaywright _playwright;
         private readonly IBrowserHelper _browserHelper;
+        private readonly IPageHelper _pageHelper;
 
         private string _deviceType = "Chrome Desktop";
         private string _browserType = "Chromium";
@@ -67,10 +70,11 @@ namespace AutomationFramework
         }
 
         public bool IsVisible { get; set; }
-        public WebDevice(IPlaywright playwright, IBrowserHelper browserHelper)
+        public WebDevice(IPlaywright playwright, IBrowserHelper browserHelper, IPageHelper pageHelper)
         {
             _playwright = playwright;
             _browserHelper = browserHelper;
+            _pageHelper = pageHelper;
         }
 
         public void SetDeviceType(string deviceType, bool? IsVisible = null)
@@ -134,8 +138,85 @@ namespace AutomationFramework
             return BrowserContext.NewPageAsync();
         }
 
-        public async Task GotoAsync(string url, PageGotoOptions? gotoOptions = null) => await Page.GotoAsync(url, gotoOptions);
+        public async Task GoDirectlyToAsync(string url, PageGotoOptions? gotoOptions = null) => await Page.GotoAsync(url, gotoOptions);
 
+        public async Task NavigateToAsync(string url)
+        {
+            if (url == Page.Url)
+                return;
+
+            IPageModel? cur_page = _pageHelper.Pages.Where(x => x.Key.IsMatch(Page.Url)).FirstOrDefault().Value;
+
+            if (cur_page == null)
+            {
+                await GoDirectlyToAsync(url);
+                return;
+            }
+
+            var next_route = cur_page.Routes.Where(x => x.TargetUrl.IsMatch(url)).FirstOrDefault();
+
+            if (next_route != null)
+            {
+                next_route.Route();
+                return;
+            }
+
+            CancellationTokenSource cts = new();
+
+            ParallelOptions options = new()
+            {
+                CancellationToken = cts.Token,
+                MaxDegreeOfParallelism = Environment.ProcessorCount
+            };
+
+            int best_score = 100;
+            object lockable = new object();
+            IList<IPageRoute> routes = new List<IPageRoute>();
+
+            try
+            {
+                Parallel.ForEach(cur_page.Routes, options, (route) =>
+                {
+                    IList<IPageRoute> check_route = new List<IPageRoute>();
+                    check_route.Add(route);
+
+                    var next_page = _pageHelper.Pages.Where(x => route.TargetUrl.IsMatch(url)).FirstOrDefault().Value;
+
+                    if (next_page == null)
+                    {
+                        return;
+                    }
+
+                    IPageRoute? nextRoute = next_page.Routes.Where(x => x.TargetUrl.IsMatch(url)).FirstOrDefault();
+
+                    if (nextRoute != null)
+                    {
+                        check_route.Add(nextRoute);
+                        if (check_route.Sum(x => x.Weight) < best_score)
+                        {
+                            lock (lockable)
+                            {
+                                best_score = check_route.Sum(x => x.Weight);
+                                routes.Clear();
+                                routes = check_route;
+                            }
+                            return;
+                        }
+                    }
+
+
+                });
+            }
+            catch (OperationCanceledException e)
+            {
+                Console.WriteLine(e.Message);
+            }
+            finally
+            {
+                cts.Dispose();
+            }
+
+        }
         public ILocator Locate(string selector, LocatorLocatorOptions? locatorLocatorOptions = null)
         {
             var tmplocator = Locator.Locator(selector, locatorLocatorOptions);
@@ -159,7 +240,7 @@ namespace AutomationFramework
             return _locator;
         }
 
-        public ILocator LocateByRole(AriaRole role, LocatorGetByRoleOptions? options = null)
+        public ILocator Locate(AriaRole role, LocatorGetByRoleOptions? options = null)
         {
             var tmplocator = Locator.GetByRole(AriaRole.Textbox, options);
             if (tmplocator.CountAsync().Result == 0)

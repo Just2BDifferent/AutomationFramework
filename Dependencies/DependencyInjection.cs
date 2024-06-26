@@ -11,6 +11,7 @@
             var services = new ServiceCollection();
             services.AddSingleton<IPlaywright>(_playwrightTask.Result);
             services.AddSingleton<IBrowserHelper, BrowserHelper>();
+            services.AddSingleton<IPageHelper, PageHelper>();
             services.AddScoped<IWebDevice, WebDevice>();
             return services;
         }
