@@ -10,7 +10,7 @@
     <PackageReference Include="Deque.AxeCore.Playwright" Version="4.9.1" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
-    <PackageReference Include="Microsoft.Playwright" Version="1.44.0" />
+    <PackageReference Include="Microsoft.Playwright" Version="1.45.0" />
     <PackageReference Include="Reqnroll" Version="2.0.3" />
     <PackageReference Include="Reqnroll.Microsoft.Extensions.DependencyInjection" Version="2.0.3" />
     <PackageReference Include="Reqnroll.MsTest" Version="2.0.3" />

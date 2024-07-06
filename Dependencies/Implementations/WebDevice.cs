@@ -1,7 +1,12 @@
 ﻿using Deque.AxeCore.Commons;
 using Deque.AxeCore.Playwright;
+using Microsoft.Playwright;
+using Reqnroll.Assist.ValueComparers;
+using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using System.Timers;
 
 namespace AutomationFramework
 {
@@ -150,19 +155,19 @@ namespace AutomationFramework
             if (cur_page == null)
             {
                 await GoDirectlyToAsync(url);
-                return;
+                cur_page = _pageHelper.Pages.Where(x => x.Key.IsMatch(Page.Url)).FirstOrDefault().Value;
+                if (cur_page == null || cur_page.PageUrlRegex.IsMatch(url))
+                    return;
             }
 
             var next_route = cur_page.Routes.Where(x => x.TargetUrl.IsMatch(url)).FirstOrDefault();
 
             if (next_route != null)
             {
-                next_route.Route();
+                next_route.Route(this);
                 return;
             }
-
-            CancellationTokenSource cts = new();
-
+            CancellationTokenSource? cts = new CancellationTokenSource();
             ParallelOptions options = new()
             {
                 CancellationToken = cts.Token,
@@ -177,17 +182,15 @@ namespace AutomationFramework
             {
                 Parallel.ForEach(cur_page.Routes, options, (route) =>
                 {
-                    IList<IPageRoute> check_route = new List<IPageRoute>();
+                    List<IPageRoute> check_route = new List<IPageRoute>();
                     check_route.Add(route);
 
-                    var next_page = _pageHelper.Pages.Where(x => route.TargetUrl.IsMatch(url)).FirstOrDefault().Value;
-
-                    if (next_page == null)
-                    {
+                    if (options.CancellationToken.IsCancellationRequested)
                         return;
-                    }
 
-                    IPageRoute? nextRoute = next_page.Routes.Where(x => x.TargetUrl.IsMatch(url)).FirstOrDefault();
+                    var next_page = _pageHelper.Pages.Where(x => x.Key.IsMatch(route.PageURL)).FirstOrDefault().Value;
+
+                    IPageRoute? nextRoute = next_page.Routes.Where(x => x.TargetUrl.IsMatch(url)).OrderBy(x => x.Weight).FirstOrDefault();
 
                     if (nextRoute != null)
                     {
@@ -199,13 +202,38 @@ namespace AutomationFramework
                                 best_score = check_route.Sum(x => x.Weight);
                                 routes.Clear();
                                 routes = check_route;
+                                cts.CancelAfter(TimeSpan.FromSeconds(2));
                             }
                             return;
                         }
                     }
 
+                    var winning_route = RecurseRoute(cts, ref lockable, ref best_score, check_route, url);
+
+                    if (winning_route != null && winning_route.Sum(x => x.Weight) <= best_score)
+                    {
+                        lock (lockable)
+                        {
+                            best_score = winning_route.Sum(x => x.Weight);
+                            routes.Clear();
+                            routes = check_route;
+                        }
+                        return;
+                    }
 
                 });
+
+                if (routes.Count > 0)
+                {
+                    for (int i = 0; i < routes.Count; i++)
+                    {
+                        routes[i].Route(this);
+                    }
+                }
+                else
+                {
+                    Assert.Fail("Could not navigate to expected page");
+                }
             }
             catch (OperationCanceledException e)
             {
@@ -217,6 +245,53 @@ namespace AutomationFramework
             }
 
         }
+
+        private List<IPageRoute>? RecurseRoute(CancellationTokenSource cts, ref object lockable, ref int best_score, List<IPageRoute> route, string url)
+        {
+            if (cts.Token.IsCancellationRequested)
+                return null;
+
+            var next_page = _pageHelper.Pages.Where(x => x.Key.IsMatch(route.Last().PageURL)).FirstOrDefault().Value;
+
+            IPageRoute? nextRoute = next_page.Routes.Where(x => x.TargetUrl.IsMatch(url)).OrderBy(x => x.Weight).FirstOrDefault();
+
+            if (nextRoute != null)
+            {
+                route.Add(nextRoute);
+                if (route.Sum(x => x.Weight) < best_score)
+                {
+                    lock (lockable)
+                    {
+                        best_score = route.Sum(x => x.Weight);
+                        cts.CancelAfter(TimeSpan.FromSeconds(2));
+                    }
+                    return route;
+                }
+                else
+                {
+                    return null;
+                }
+            }
+
+            List<IPageRoute>? winning_route = null;
+
+            foreach (var rt in next_page.Routes)
+            {
+                if (route.Where(x => x.PageURL == rt.PageURL).Count() > 0)
+                    continue;
+
+                var new_route_list = route.ToList();
+                new_route_list.Add(rt);
+
+                var decider = RecurseRoute(cts, ref lockable, ref best_score, new_route_list, url);
+
+                if (decider != null)
+                    winning_route = decider;
+            }
+
+            return winning_route;
+        }
+
         public ILocator Locate(string selector, LocatorLocatorOptions? locatorLocatorOptions = null)
         {
             var tmplocator = Locator.Locator(selector, locatorLocatorOptions);
