@@ -74,12 +74,14 @@ namespace AutomationFramework
             set { _locator = value; }
         }
 
+        public IScenarioContext Scenario { get; private set; }
         public bool IsVisible { get; set; }
-        public WebDevice(IPlaywright playwright, IBrowserHelper browserHelper, IPageHelper pageHelper)
+        public WebDevice(IPlaywright playwright, IBrowserHelper browserHelper, IPageHelper pageHelper, ScenarioContext context)
         {
             _playwright = playwright;
             _browserHelper = browserHelper;
             _pageHelper = pageHelper;
+            Scenario = context;
         }
 
         public void SetDeviceType(string deviceType, bool? IsVisible = null)
@@ -292,10 +294,10 @@ namespace AutomationFramework
             return winning_route;
         }
 
-        public ILocator Locate(string selector, LocatorLocatorOptions? locatorLocatorOptions = null)
+        public ILocator Locate(string selector, LocatorLocatorOptions? locatorLocatorOptions = null, bool LimitToCurrentSelector = false)
         {
             var tmplocator = Locator.Locator(selector, locatorLocatorOptions);
-            if (tmplocator.CountAsync().Result == 0)
+            if (tmplocator.CountAsync().Result == 0 && !LimitToCurrentSelector)
             {
                 PageLocatorOptions? pageLocatorOptions = null;
                 if (locatorLocatorOptions != null)
@@ -315,10 +317,10 @@ namespace AutomationFramework
             return _locator;
         }
 
-        public ILocator Locate(AriaRole role, LocatorGetByRoleOptions? options = null)
+        public ILocator Locate(AriaRole role, LocatorGetByRoleOptions? options = null, bool LimitToCurrentSelector = false)
         {
             var tmplocator = Locator.GetByRole(AriaRole.Textbox, options);
-            if (tmplocator.CountAsync().Result == 0)
+            if (tmplocator.CountAsync().Result == 0 && !LimitToCurrentSelector)
             {
                 PageGetByRoleOptions? pageGetByRoleOptions = null;
                 if (options != null)
@@ -341,6 +343,20 @@ namespace AutomationFramework
             _locator = tmplocator;
             return _locator;
         }
+
+        public ILocator Locate(ILocator locator, bool LimitToCurrentSelector = false)
+        {
+            var tmplocator = Locator.Locator(locator);
+            if (tmplocator.CountAsync().Result == 0 && !LimitToCurrentSelector)
+            {
+                tmplocator = locator;
+            }
+            _locator = tmplocator;
+            return _locator;
+        }
+
+        public ILocator GetLocator(string selector, PageLocatorOptions? pageLocatorOptions = null) => Page.Locator(selector, pageLocatorOptions);
+        public ILocator GetLocator(AriaRole ariaRole, PageGetByRoleOptions? pageLocatorOptions = null) => Page.GetByRole(ariaRole, pageLocatorOptions);
 
         public IPageAssertions CurrentPage() => Assertions.Expect(Page);
 
@@ -374,6 +390,11 @@ namespace AutomationFramework
         }
 
         public event EventHandler<IDownload> OnDownload { add { Page.Download += value; } remove { Page.Download -= value; } }
+
+        public IPageModel? GetPageModel()
+        {
+            return _pageHelper.Pages.Where(x => x.Key.IsMatch(Page.Url)).FirstOrDefault().Value;
+        }
 
     }
 }

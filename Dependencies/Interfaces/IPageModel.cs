@@ -6,7 +6,7 @@ namespace AutomationFramework
     {
         public Regex PageUrlRegex { get; set; }
         public string PageUrl { get; set; }
-        public IDictionary<string, Tuple<AriaRole, ILocator>> Locators { get; set; }
+        public ILocator GetLocator(IWebDevice webDevice, string locatorName);
         public IList<IPageRoute> Routes { get; set; }
     }
 }

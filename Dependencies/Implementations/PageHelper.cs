@@ -2,7 +2,7 @@
 
 namespace AutomationFramework
 {
-    internal class PageHelper : IPageHelper
+    public class PageHelper : IPageHelper
     {
         public IDictionary<Regex, IPageModel> Pages { get; set; }
 
