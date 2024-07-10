@@ -8,5 +8,7 @@ namespace AutomationFramework
         public string PageUrl { get; set; }
         public ILocator GetLocator(IWebDevice webDevice, string locatorName);
         public IList<IPageRoute> Routes { get; set; }
+
+        public bool IsStartPage { get; }
     }
 }

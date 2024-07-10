@@ -7,7 +7,7 @@ namespace AutomationFramework
         public Regex TargetUrl { get; set; }
         public string PageURL { get; set; }
         public int Weight { get; set; }
-        public void Route(IWebDevice device);
+        public void Route(IWebDevice device, RoutingEventArgs args);
         public event EventHandler<RoutingEventArgs>? Routing;
     }
 }

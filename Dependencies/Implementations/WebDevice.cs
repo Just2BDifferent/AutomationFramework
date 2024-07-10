@@ -15,6 +15,7 @@ namespace AutomationFramework
         private readonly IPlaywright _playwright;
         private readonly IBrowserHelper _browserHelper;
         private readonly IPageHelper _pageHelper;
+        private readonly IReqnrollOutputHelper _reqnrollOutputHelper;
 
         private string _deviceType = "Chrome Desktop";
         private string _browserType = "Chromium";
@@ -76,12 +77,13 @@ namespace AutomationFramework
 
         public IScenarioContext Scenario { get; private set; }
         public bool IsVisible { get; set; }
-        public WebDevice(IPlaywright playwright, IBrowserHelper browserHelper, IPageHelper pageHelper, ScenarioContext context)
+        public WebDevice(IPlaywright playwright, IBrowserHelper browserHelper, IPageHelper pageHelper, ScenarioContext context, IReqnrollOutputHelper outputHelper)
         {
             _playwright = playwright;
             _browserHelper = browserHelper;
             _pageHelper = pageHelper;
             Scenario = context;
+            _reqnrollOutputHelper = outputHelper;
         }
 
         public void SetDeviceType(string deviceType, bool? IsVisible = null)
@@ -156,17 +158,28 @@ namespace AutomationFramework
 
             if (cur_page == null)
             {
+                _reqnrollOutputHelper.WriteLine($"Attempting to go directly to {url}");
                 await GoDirectlyToAsync(url);
                 cur_page = _pageHelper.Pages.Where(x => x.Key.IsMatch(Page.Url)).FirstOrDefault().Value;
-                if (cur_page == null || cur_page.PageUrlRegex.IsMatch(url))
+
+                if (cur_page == null)
+                {
+                    
+                    cur_page = _pageHelper.Pages.Where(x => x.Value.IsStartPage).FirstOrDefault().Value;
+                    _reqnrollOutputHelper.WriteLine($"Landed on an unknown page - attempting to start from Starting Page {cur_page.PageUrl}");
+                    await GoDirectlyToAsync(cur_page.PageUrl);
+                }
+                else if (cur_page.PageUrlRegex.IsMatch(url))
                     return;
-            }
+                else
+                    _reqnrollOutputHelper.WriteLine($"Landed on {cur_page.PageUrl}");}
 
             var next_route = cur_page.Routes.Where(x => x.TargetUrl.IsMatch(url)).FirstOrDefault();
 
             if (next_route != null)
             {
-                next_route.Route(this);
+                _reqnrollOutputHelper.WriteLine($"Routing to: {next_route.PageURL}");
+                next_route.Route(this, new RoutingEventArgs() { DestinationURL = url });
                 return;
             }
             CancellationTokenSource? cts = new CancellationTokenSource();
@@ -229,7 +242,8 @@ namespace AutomationFramework
                 {
                     for (int i = 0; i < routes.Count; i++)
                     {
-                        routes[i].Route(this);
+                        _reqnrollOutputHelper.WriteLine($"Routing to: {routes[i].PageURL}");
+                        routes[i].Route(this, new RoutingEventArgs() { DestinationURL = url });
                     }
                 }
                 else

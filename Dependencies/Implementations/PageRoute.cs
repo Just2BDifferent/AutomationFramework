@@ -16,9 +16,9 @@ namespace AutomationFramework
 
         public event EventHandler<RoutingEventArgs>? Routing;
 
-        public void Route(IWebDevice device)
+        public void Route(IWebDevice device, RoutingEventArgs args)
         {
-            Routing?.Invoke(device, new RoutingEventArgs() {});
+            Routing?.Invoke(device,  args);
         }
 
         public PageRoute(Regex targetUrl, string pageURL, int weight)
@@ -31,7 +31,7 @@ namespace AutomationFramework
 
     public class RoutingEventArgs : EventArgs
     {
-
+        public string DestinationURL { get; set; }
     }
 }
 
